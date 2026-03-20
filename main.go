@@ -9,6 +9,7 @@ import (
 
 	argoclientset "github.com/argoproj/argo-cd/v2/pkg/client/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -22,6 +23,11 @@ import (
 func main() {
 	kubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		panic(err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err)
 	}
@@ -49,7 +55,20 @@ func main() {
 			if status == "Unknown" || status == "" {
 				fmt.Printf("发现异常应用：[%s]，当前状态：%v\n", app.Name, app.Status)
 
-				fmt.Printf("🛠 正在为 [%s] 执行自愈动作：强制刷新缓存并同步...\n", app.Name)
+				deploy, err := clientset.AppsV1().Deployments("argocd").Get(context.Background(), "argocd-repo-server", metav1.GetOptions{})
+				if err == nil {
+					if deploy.Spec.Template.Annotations == nil {
+						deploy.Spec.Template.Annotations = make(map[string]string)
+					}
+					deploy.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+				}
+
+				_, err = clientset.AppsV1().Deployments("argocd").Update(context.Background(), deploy, metav1.UpdateOptions{})
+				if err != nil {
+					fmt.Printf("❌ 重启组件失败: %v\n", err)
+				} else {
+					fmt.Printf("✅ ArgoCD 核心组件已成功触发 Rollout Restart！\n")
+				}
 
 				// 这里模拟自愈
 				app.Annotations = map[string]string{"self-healed-by": "zhaoning-bot", "time": time.Now().String()}
