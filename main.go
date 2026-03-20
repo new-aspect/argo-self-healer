@@ -47,7 +47,7 @@ func main() {
 
 			// 模拟救火
 			if status == "Unknown" || status == "" {
-				fmt.Printf("发现异常应用：[%s]，当前状态：%\n", app.Name, app.Status)
+				fmt.Printf("发现异常应用：[%s]，当前状态：%v\n", app.Name, app.Status)
 
 				fmt.Printf("🛠 正在为 [%s] 执行自愈动作：强制刷新缓存并同步...\n", app.Name)
 
